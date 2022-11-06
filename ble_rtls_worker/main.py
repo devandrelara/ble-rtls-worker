@@ -8,10 +8,11 @@ from ble_rtls_worker.schemas.measures import NodeMeasuresQueue, RSSIMeasure, Sca
 from ble_rtls_worker.logger import logger
 from threading import Thread, main_thread
 import time
+from ble_rtls_worker.settings import MQTT_BROKER_HOST
 
-from ble_rtls_worker.utils.positioning import calculate_position
+from ble_rtls_worker.utils.positioning import calculate_position, distance_from_rssi
 
-nodes_queue_list = [NodeMeasuresQueue(node_id=node.id,node_mac_address=node.mac_address, measures_by_scanner=[]) for node in get_nodes()]
+nodes_queue_list = [NodeMeasuresQueue(node_id=node.id,node_mac_address='5d:f2:07:b0:57:b8', measures_by_scanner=[]) for node in get_nodes()]
 
 scanner_list = get_scanners()
 
@@ -22,7 +23,7 @@ def find_node_queue(nodes_queue_list: List[NodeMeasuresQueue],lookup_mac_address
 
 
 def register_measure(measure: RSSIMeasure):
-  node_queue = find_node_queue(nodes_queue_list,measure.mac_address)
+  node_queue = find_node_queue(nodes_queue_list,'5d:f2:07:b0:57:b8')
   scanner = parse_obj_as(Scanner,scanner_list.__root__[measure.scanner])
   if not node_queue:
     return
@@ -38,8 +39,11 @@ def on_message_print(client, userdata, message):
       scanner_name = msg.split("&")[0].split("=")[1]
       node_mac_address = msg.split("&")[1].split("=")[1]
       rssi = int(msg.split("&")[2].split("=")[1])
+      # distance = distance_from_rssi(rssi=rssi)
+      # print(distance)
       time = float(msg.split("&")[3].split("=")[1])
-    except:
+    except Exception as e:
+      logger.error(e)
       logger.error("Error parsing incoming mqtt incoming payload")
       return
     
@@ -71,7 +75,6 @@ class PositioningThread(Thread):
           top_measures = queue.find_top_measures()
           x,y = calculate_position(top_measures)
           position = Position(area=1,node=queue.node_id,x=x,y=y)
-          print(position)
           post_position(position=position)
 
         
@@ -92,7 +95,8 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message_print
 
-client.connect("192.168.0.9", 1883, 60)
+client.connect(MQTT_BROKER_HOST, 1883, 60)
+# client.loop_forever()
 client.loop_start()
 main_thread = PositioningThread()
 main_thread.start()

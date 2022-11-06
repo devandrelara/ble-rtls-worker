@@ -1,1 +1,2 @@
 API_BASE_URL = "http://localhost:8000"
+MQTT_BROKER_HOST = "192.168.0.4"
